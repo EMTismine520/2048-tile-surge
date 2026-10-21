@@ -2,10 +2,14 @@
 // Each entry is the smallest tile value that reaches the tier.
 HTMLActuator.TIERS = [64, 256, 1024, 2048];
 
+// The board warns when this many empty cells or fewer are left
+HTMLActuator.TIGHT_CELLS = 2;
+
 function HTMLActuator() {
   this.root             = document.documentElement;
   this.tileContainer    = document.querySelector(".tile-container");
   this.gameContainer    = document.querySelector(".game-container");
+  this.boardFx          = document.querySelector(".board-fx");
   this.scoreContainer   = document.querySelector(".score-container");
   this.bestContainer    = document.querySelector(".best-container");
   this.messageContainer = document.querySelector(".game-message");
@@ -35,6 +39,7 @@ function HTMLActuator() {
 HTMLActuator.prototype.actuate = function (grid, metadata) {
   var self    = this;
   var effects = metadata.effects;
+  var slid    = effects.direction !== undefined; // A real move, not an item
 
   window.requestAnimationFrame(function () {
     self.clearContainer(self.tileContainer);
@@ -42,10 +47,17 @@ HTMLActuator.prototype.actuate = function (grid, metadata) {
     // Swapped tiles glide across more slowly than a normal slide
     self.toggleClass(self.tileContainer, "slow-slide", !!effects.slow);
 
+    // A move sweeps a light wave across the board in its direction (the CSS
+    // also uses data-dir to squash tiles against the side they slid to)
+    if (slid) {
+      self.gameContainer.setAttribute("data-dir", effects.direction);
+      self.replayClass(self.boardFx, "is-on");
+    }
+
     grid.cells.forEach(function (column) {
       column.forEach(function (cell) {
         if (cell) {
-          self.addTile(cell, !!effects.rewind);
+          self.addTile(cell, !!effects.rewind, slid);
         }
       });
     });
@@ -66,6 +78,11 @@ HTMLActuator.prototype.actuate = function (grid, metadata) {
     self.updateScore(metadata.score);
     self.updateBestScore(metadata.bestScore, metadata.score);
     self.updateTier(metadata.maxTile);
+
+    // Almost full: the board rim pulses as a warning
+    self.toggleClass(self.gameContainer, "is-tight",
+                     !metadata.terminated &&
+                     grid.availableCells().length <= HTMLActuator.TIGHT_CELLS);
 
     if (metadata.terminated) {
       if (metadata.over) {
@@ -91,8 +108,9 @@ HTMLActuator.prototype.clearContainer = function (container) {
 };
 
 // Draws a tile; rewind marks tiles restored by undo (they fade back in
-// instead of popping up as new tiles)
-HTMLActuator.prototype.addTile = function (tile, rewind) {
+// instead of popping up as new tiles), slid marks a real move (tiles that
+// changed cell squash against the side they slid to)
+HTMLActuator.prototype.addTile = function (tile, rewind, slid) {
   var self = this;
 
   var wrapper   = document.createElement("div");
@@ -103,6 +121,10 @@ HTMLActuator.prototype.addTile = function (tile, rewind) {
   var classes = this.tileClasses(tile, positionClass);
 
   if (tile.previousPosition) {
+    if (slid && (position.x !== tile.x || position.y !== tile.y)) {
+      classes.push("tile-slid");
+    }
+
     // Make sure that the tile gets rendered in the previous position first
     window.requestAnimationFrame(function () {
       classes[2] = self.positionClass({ x: tile.x, y: tile.y });
@@ -111,10 +133,11 @@ HTMLActuator.prototype.addTile = function (tile, rewind) {
   } else if (tile.mergedFrom) {
     classes.push("tile-merged");
 
-    // Render the tiles that merged
+    // Render the tiles that merged, and a ripple spreading under the result
     tile.mergedFrom.forEach(function (merged) {
       self.addTile(merged);
     });
+    this.addRipple(tile);
   } else {
     classes.push(rewind ? "tile-rewind" : "tile-new");
   }
@@ -136,6 +159,16 @@ HTMLActuator.prototype.addGhost = function (tile, effectClass) {
   this.applyClasses(wrapper, classes);
   wrapper.appendChild(this.tileInner(tile));
   this.tileContainer.appendChild(wrapper);
+};
+
+// Draws the ring that spreads under a freshly merged tile, in the tile's
+// color (the next actuate clears it along with the tiles)
+HTMLActuator.prototype.addRipple = function (tile) {
+  var ripple = document.createElement("div");
+
+  this.applyClasses(ripple, ["merge-ripple", "tile-" + tile.value,
+                             this.positionClass({ x: tile.x, y: tile.y })]);
+  this.tileContainer.appendChild(ripple);
 };
 
 // Base classes of a tile: value color, position (always at index 2),
@@ -211,6 +244,7 @@ HTMLActuator.prototype.updateScore = function (score) {
     addition.textContent = "+" + difference;
 
     this.scoreContainer.appendChild(addition);
+    this.replayClass(this.scoreContainer, "is-bump");
   }
 };
 
@@ -233,12 +267,14 @@ HTMLActuator.prototype.updateTier = function (maxTile) {
   this.root.setAttribute("data-tier", tier);
 };
 
-// Shows the win / game-over overlay with this game's score
+// Shows the win / game-over overlay with this game's score; the board
+// behind it fades (lost) or turns gold (won)
 HTMLActuator.prototype.message = function (won) {
   var type    = won ? "game-won" : "game-over";
   var message = won ? "你赢了！" : "游戏结束";
 
   this.messageContainer.classList.add(type);
+  this.gameContainer.classList.add(won ? "is-won" : "is-over");
   this.messageTitle.textContent = message;
   this.finalScore.textContent   = "本局得分 " + this.score;
 };
@@ -248,6 +284,8 @@ HTMLActuator.prototype.clearMessage = function () {
   // IE only takes one value to remove at a time.
   this.messageContainer.classList.remove("game-won");
   this.messageContainer.classList.remove("game-over");
+  this.gameContainer.classList.remove("is-won");
+  this.gameContainer.classList.remove("is-over");
 };
 
 // Shows whether sound is muted on the sound button

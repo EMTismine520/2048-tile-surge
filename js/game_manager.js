@@ -513,7 +513,7 @@ GameManager.prototype.addRandomTile = function () {
 
 // Saves the game and sends the updated grid to the actuator.
 // effects (optional) asks for one-off animations:
-// { removed, smashed, slow, rewind, impact }
+// { removed, smashed, slow, rewind, impact, direction }
 GameManager.prototype.actuate = function (effects) {
   if (this.storageManager.getBestScore() < this.score) {
     this.storageManager.setBestScore(this.score);
@@ -705,7 +705,8 @@ GameManager.prototype.move = function (direction) {
     });
 
     this.actuate({
-      impact: this.biggestMerge(merges) >= GameManager.IMPACT_VALUE
+      impact:    this.biggestMerge(merges) >= GameManager.IMPACT_VALUE,
+      direction: direction
     });
   } else {
     this.soundManager.blocked(); // Nothing could move that way
