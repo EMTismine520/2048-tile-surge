@@ -3,6 +3,8 @@ function HTMLActuator() {
   this.scoreContainer   = document.querySelector(".score-container");
   this.bestContainer    = document.querySelector(".best-container");
   this.messageContainer = document.querySelector(".game-message");
+  this.messageTitle     = document.querySelector(".message-title");
+  this.finalScore       = document.querySelector(".final-score");
   this.soundButton      = document.querySelector(".sound-button");
 
   this.score = 0;
@@ -23,7 +25,7 @@ HTMLActuator.prototype.actuate = function (grid, metadata) {
     });
 
     self.updateScore(metadata.score);
-    self.updateBestScore(metadata.bestScore);
+    self.updateBestScore(metadata.bestScore, metadata.score);
 
     if (metadata.terminated) {
       if (metadata.over) {
@@ -56,7 +58,9 @@ HTMLActuator.prototype.addTile = function (tile) {
   var positionClass = this.positionClass(position);
 
   // We can't use classlist because it somehow glitches when replacing classes
-  var classes = ["tile", "tile-" + tile.value, positionClass];
+  // tile-len-N lets the CSS shrink the font for longer numbers
+  var classes = ["tile", "tile-" + tile.value, positionClass,
+                 "tile-len-" + String(tile.value).length];
 
   if (tile.value > Tile.WIN_VALUE) classes.push("tile-super");
 
@@ -121,16 +125,25 @@ HTMLActuator.prototype.updateScore = function (score) {
   }
 };
 
-HTMLActuator.prototype.updateBestScore = function (bestScore) {
+// Shows the best score; highlights it while the current game holds the record
+HTMLActuator.prototype.updateBestScore = function (bestScore, score) {
   this.bestContainer.textContent = bestScore;
+
+  if (score > 0 && score >= bestScore) {
+    this.bestContainer.classList.add("is-record");
+  } else {
+    this.bestContainer.classList.remove("is-record");
+  }
 };
 
+// Shows the win / game-over overlay with this game's score
 HTMLActuator.prototype.message = function (won) {
   var type    = won ? "game-won" : "game-over";
-  var message = won ? "You win!" : "Game over!";
+  var message = won ? "你赢了！" : "游戏结束";
 
   this.messageContainer.classList.add(type);
-  this.messageContainer.getElementsByTagName("p")[0].textContent = message;
+  this.messageTitle.textContent = message;
+  this.finalScore.textContent   = "本局得分 " + this.score;
 };
 
 HTMLActuator.prototype.clearMessage = function () {
@@ -140,8 +153,10 @@ HTMLActuator.prototype.clearMessage = function () {
 };
 
 // Shows whether sound is muted on the sound button
+// (the CSS swaps the speaker icon based on the sound-muted class)
 HTMLActuator.prototype.updateSoundButton = function (muted) {
   var button = this.soundButton;
+  var label  = muted ? "取消静音" : "静音";
 
   if (muted) {
     button.classList.add("sound-muted");
@@ -149,7 +164,7 @@ HTMLActuator.prototype.updateSoundButton = function (muted) {
     button.classList.remove("sound-muted");
   }
 
-  button.textContent = muted ? "Sound off" : "Sound on";
   button.setAttribute("aria-pressed", muted ? "true" : "false");
-  button.setAttribute("title", muted ? "Unmute (M)" : "Mute (M)");
+  button.setAttribute("aria-label", label);
+  button.setAttribute("title", label + " (M)");
 };

@@ -90,32 +90,43 @@ KeyboardInputManager.prototype.listen = function () {
   this.bindButtonPress(".revive-button", this.revive);
   this.bindButtonPress(".sound-button", this.toggleSound);
 
-  // Respond to swipe events
+  // Respond to swipe events anywhere on the screen. Preventing the default
+  // on touchstart keeps the page from scrolling and stops the browser from
+  // synthesizing a click, so buttons fire once (from their touchend binding)
   var touchStartClientX, touchStartClientY;
-  var gameContainer = document.getElementsByClassName("game-container")[0];
+  var swipeActive = false;
+  var swipeArea   = document.querySelector(".app");
 
-  gameContainer.addEventListener(this.eventTouchstart, function (event) {
+  swipeArea.addEventListener(this.eventTouchstart, function (event) {
+    event.preventDefault();
+
     if ((!window.navigator.msPointerEnabled && event.touches.length > 1) ||
         event.targetTouches.length > 1) {
+      swipeActive = false;
       return; // Ignore if touching with more than 1 finger
     }
+
+    // A press that starts on a button is a tap, never a swipe
+    swipeActive = !self.isButtonTarget(event.target);
+    if (!swipeActive) return;
 
     var start = self.getTouchPoint(event, false);
     touchStartClientX = start.x;
     touchStartClientY = start.y;
+  });
 
+  swipeArea.addEventListener(this.eventTouchmove, function (event) {
     event.preventDefault();
   });
 
-  gameContainer.addEventListener(this.eventTouchmove, function (event) {
-    event.preventDefault();
-  });
-
-  gameContainer.addEventListener(this.eventTouchend, function (event) {
+  swipeArea.addEventListener(this.eventTouchend, function (event) {
     if ((!window.navigator.msPointerEnabled && event.touches.length > 0) ||
         event.targetTouches.length > 0) {
       return; // Ignore if still touching with one or more fingers
     }
+
+    if (!swipeActive) return;
+    swipeActive = false;
 
     var end = self.getTouchPoint(event, true);
 
@@ -132,6 +143,16 @@ KeyboardInputManager.prototype.listen = function () {
         (dy > 0 ? DIRECTIONS.DOWN : DIRECTIONS.UP));
     }
   });
+};
+
+// Whether the element is a button or sits inside one
+KeyboardInputManager.prototype.isButtonTarget = function (element) {
+  while (element && element !== document) {
+    if (element.tagName === "BUTTON") return true;
+    element = element.parentNode;
+  }
+
+  return false;
 };
 
 // Returns the {x, y} coordinates of a touch/pointer event;

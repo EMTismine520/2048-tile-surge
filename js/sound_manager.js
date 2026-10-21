@@ -16,10 +16,10 @@ SoundManager.MAX_FREQ = 3000;
 // Tiles at or above this value get an extra shimmering octave layer
 SoundManager.BRIGHT_VALUE = 256;
 
-// Seconds, mirrored from style/main.scss ($transition-speed and the
-// game-message fade-in delay of $transition-speed * 12)
-SoundManager.SLIDE_TIME   = 0.1;
-SoundManager.MESSAGE_TIME = 1.2;
+// Seconds, mirrored from style/main.css (--slide and the .game-message
+// fade-in delay)
+SoundManager.SLIDE_TIME   = 0.11;
+SoundManager.MESSAGE_TIME = 0.7;
 
 // Merge chord: max simultaneous notes, gap between them, per-note level
 SoundManager.MAX_CHORD  = 4;
