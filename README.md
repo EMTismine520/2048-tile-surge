@@ -16,12 +16,41 @@ python -m http.server 8000
 ## Controls
 
 - Move: arrow keys, WASD, or Vim keys (HJKL); swipe anywhere on touch screens.
-- Restart: `R` key or the "新游戏" (new game) button.
-- Clear tiles: the "清除方块" button under the board removes the 3 smallest tiles (no new tile is spawned) so you can keep playing.
-- Revive: on the game-over screen, "复活" removes the 6 smallest tiles and continues with your current score. It can be used any number of times.
+- New game: the restart button in the top bar or the `R` key. If the current game has a score, it asks for confirmation first.
 - Sound: the speaker button in the top bar, or the `M` key, mutes and unmutes the sound effects. The setting is remembered.
+- `Esc` closes a dialog or cancels the selected item.
 
-The numbers live in `GameManager.CLEAR_COUNT`, `GameManager.REVIVE_CLEAR_COUNT` and `GameManager.CLEAR_LIMIT` (`js/game_manager.js`). Set `CLEAR_LIMIT` to a number to cap "Clear tiles" uses per game; `null` means unlimited. Both actions always leave at least one tile on the board.
+## Combo, energy and items
+
+- **Combo**: each move that merges at least one pair raises the combo by 1. A move without a merge, an item, or a revive resets it. The combo counter appears in the energy bar from 2 in a row, and the board edge glows in the combo's color.
+- **Energy**: each merge earns 1 energy, times the combo multiplier (combo 1–2: x1, 3–5: x2, 6+: x3), up to 100. Combos only affect energy, not the score, so scores stay comparable with classic 2048.
+- **Items** (the bar under the board; the badge shows the energy cost; greyed out when not affordable):
+  - 撤销 Undo (15, or the `U` key): reverts the last move (board, score, energy). Only one step back. It pays from the energy you had *before* that move, so moving and undoing can't farm energy. It also works on the game-over screen.
+  - 交换 Swap (25): tap two tiles to swap them. Tap the first tile again to unselect it.
+  - 锤子 Hammer (30): tap a tile to smash it.
+  - 清除 Clear (40): removes the 3 smallest tiles.
+  - Swap and hammer wait for a tap on the board. Tap the item again (now labelled 取消), press `Esc`, or swipe to cancel; nothing is spent until the item takes effect. Items never spawn a new tile and always leave at least one tile on the board.
+- **Revive** (复活, game-over screen): removes the 6 smallest tiles and continues with your current score. Once per game.
+
+## Background
+
+The aurora behind the game follows the largest tile on the board, along the same color band as the tiles: mint/sky (up to 32), violet/magenta (64–128), rose/coral (256–512), orange/amber (1024), gold (2048+). Merges of 256 or more shake the board and flash the aurora.
+
+## Boss mode
+
+The key button in the top bar opens the boss mode dialog. Entering the right key turns boss mode on: all items, clear and revive are free and unlimited, the energy bar shows ∞ and the title badge reads BOSS. Boss mode stays on across reloads and new games until it is switched off in the same dialog. Scores count toward the normal best score.
+
+The key is checked case-insensitively, with surrounding spaces ignored. Only its 32-bit FNV-1a hash is kept in the source (`GameManager.BOSS_KEY_HASH`). To change the key, compute the hash in the browser console and paste it there:
+
+```js
+GameManager.prototype.hashKey("new key")
+```
+
+This only keeps the key from being read at a glance: it is a client-side game, so anyone can also set `localStorage.bossMode` to `"true"`.
+
+## Tuning
+
+All numbers are constants at the top of `js/game_manager.js`: `ENERGY_MAX`, `ENERGY_PER_MERGE`, `COMBO_STEPS`, `ITEM_COSTS`, `CLEAR_COUNT`, `REVIVE_CLEAR_COUNT`, `REVIVE_LIMIT`, `IMPACT_VALUE`.
 
 ## Project structure
 
@@ -29,11 +58,14 @@ The numbers live in `GameManager.CLEAR_COUNT`, `GameManager.REVIVE_CLEAR_COUNT` 
 index.html                 entry point; script load order is the dependency order
 js/
   application.js           bootstrap, wires the managers into GameManager
-  game_manager.js          game state, move/merge rules, win/lose detection
+  game_manager.js          game state, move/merge rules, win/lose detection,
+                           combo/energy, items, revive limit, boss mode
   grid.js, tile.js         board and tile data models
-  html_actuator.js         renders the grid/score/messages to the DOM
-  keyboard_input_manager.js  keyboard, touch and button input, emits events
-  local_storage_manager.js best score, game-state and mute persistence
+  html_actuator.js         renders the grid, score, energy bar, items, dialogs
+                           and background tier to the DOM
+  keyboard_input_manager.js  keyboard, touch, board taps and button input,
+                           emits events
+  local_storage_manager.js best score, game-state, mute and boss-mode persistence
   sound_manager.js         sound effects, synthesized live with Web Audio
   *_polyfill.js            legacy browser polyfills
 style/
@@ -43,11 +75,12 @@ style/
 
 ## Editing styles
 
-`style/main.css` is plain CSS; edit it directly. The board scales with the screen: everything is derived from `--board` (board side, sized to the space left between the score cards and the buttons), `--gap` and `--cell` on `.game-container`. Tile colors are the `--t` / `--fg` / `--glow` variables on each `.tile-N` rule, and `tile-len-N` classes (added by `html_actuator.js`) pick the font size by digit count.
+`style/main.css` is plain CSS; edit it directly. The board scales with the screen: everything is derived from `--board` (board side, sized to the space left between the energy bar and the item bar), `--gap` and `--cell` on `.game-container`. On tall screens `--spare` (on `.app`) spreads the extra height over the gaps, the energy bar and the item bar instead of leaving it empty around the board. Tile colors are the `--t` / `--fg` / `--glow` variables on each `.tile-N` rule, and `tile-len-N` classes (added by `html_actuator.js`) pick the font size by digit count. Aurora colors are `--aurora-1/2/3`, set per `[data-tier]`.
 
 ## Notes
 
-- Saved games live in `localStorage` under `gameState` (with its `keepPlaying` field) and `bestScore`. Those keys are kept stable so existing saves keep working. A corrupted save is ignored and a new game starts. The mute setting is stored under `soundMuted`.
+- Saved games live in `localStorage` under `gameState` (with its `keepPlaying` field) and `bestScore`. Those keys are kept stable so existing saves keep working. A corrupted save is ignored and a new game starts. The mute setting is stored under `soundMuted`, and boss mode under `bossMode`.
+- `gameState` also holds `energy`, `combo`, `revivesUsed` and `undoState` (the state before the last move, used by undo). Saves from older versions lack them and load with 0 energy and no undo.
 - Sound effects use no audio files: `js/sound_manager.js` synthesizes them with the Web Audio API. Each merge plays a marimba note whose pitch climbs a pentatonic scale with the tile value, panned to the tile's column. Browsers without Web Audio simply stay silent.
 
 ## License

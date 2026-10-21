@@ -82,7 +82,7 @@ SoundManager.prototype.setMuted = function (muted, announce) {
 
 // Sound of a move that changed the board.
 // summary: { direction, movedCount, merges: [{ value, x, y }], spawned,
-//            milestone, newBest, won, over }
+//            milestone, newBest, won, over, comboLevel, charged }
 SoundManager.prototype.move = function (summary) {
   if (!this.ready()) return;
 
@@ -92,10 +92,12 @@ SoundManager.prototype.move = function (summary) {
   // Step 1: the slide itself
   this.swish(summary.direction, summary.movedCount, start);
 
-  // Step 2: merges ring out when the merged tiles pop in
+  // Step 2: merges ring out when the merged tiles pop in; a long combo
+  // lifts the whole chord so the streak is heard
   var sparkleAt = landing;
   if (summary.merges.length) {
-    var chord = this.mergeChord(summary.merges, landing);
+    var chord = this.mergeChord(summary.merges, landing,
+                                summary.comboLevel || 0);
     sparkleAt = chord.end;
 
     // A triple (or bigger) merge earns a bell on top of the strum
@@ -118,9 +120,15 @@ SoundManager.prototype.move = function (summary) {
   // Step 5: beating the best score (once per game)
   if (summary.newBest) {
     this.sparkle(sparkleAt + 0.05);
+    sparkleAt += 0.15;
   }
 
-  // Step 6: end-of-game moments
+  // Step 6: the energy bar just filled up
+  if (summary.charged) {
+    this.energyFull(sparkleAt + 0.08);
+  }
+
+  // Step 7: end-of-game moments
   if (summary.won) {
     this.win(landing + 0.1);
   }
@@ -129,8 +137,8 @@ SoundManager.prototype.move = function (summary) {
   }
 };
 
-// Dull thud for an action that did nothing (a move into a wall, or
-// "Clear tiles" when it can't be used); throttled for held keys
+// Dull thud for an action that did nothing (a move into a wall, or an
+// item that can't be used); throttled for held keys
 SoundManager.prototype.blocked = function () {
   if (!this.ready()) return;
 
@@ -233,6 +241,126 @@ SoundManager.prototype.keepPlaying = function () {
   this.mallet(this.semitones(14), now + 0.08, { gain: 0.15, decay: 0.5 });
 };
 
+// Swap / hammer armed (on) or put away (off): a soft two-note blip,
+// rising or falling
+SoundManager.prototype.arm = function (on) {
+  if (!this.ready()) return;
+
+  var now   = this.now();
+  var notes = on ? [12, 19] : [19, 12];
+
+  this.mallet(this.semitones(notes[0]), now, { gain: 0.12, decay: 0.15 });
+  this.mallet(this.semitones(notes[1]), now + 0.05,
+              { gain: 0.12, decay: 0.2 });
+};
+
+// First tile picked for a swap: the tile's own note, quietly
+SoundManager.prototype.pick = function (tile) {
+  if (!this.ready()) return;
+
+  this.mallet(this.noteFor(tile.value), this.now(), {
+    gain: 0.15, decay: 0.25, pan: this.panFor(tile.x)
+  });
+};
+
+// Undo: a falling sweep (the slide played backwards) and two falling notes
+SoundManager.prototype.undo = function () {
+  if (!this.ready()) return;
+
+  var now   = this.now();
+  var voice = this.voice({ wet: 0.15 });
+
+  // Step 1: the falling sweep
+  if (voice) {
+    this.noise(voice, {
+      when: now, attack: 0.08, duration: 0.18, gain: 0.25,
+      filter: { type: "bandpass", from: 2600, to: 500, Q: 1.4 }
+    });
+    this.seal(voice);
+  }
+
+  // Step 2: D5 down to G4
+  this.mallet(this.semitones(7), now + 0.08, { gain: 0.18, decay: 0.3 });
+  this.mallet(this.semitones(0), now + 0.17, { gain: 0.18, decay: 0.45 });
+};
+
+// Swap: each tile ticks on its own side as they glide across; the game-over
+// line follows when the swap left no move
+SoundManager.prototype.swap = function (a, b, over) {
+  if (!this.ready()) return;
+
+  var now = this.now();
+
+  this.mallet(this.noteFor(a.value), now, {
+    gain: 0.16, decay: 0.3, pan: this.panFor(b.x)
+  });
+  this.mallet(this.noteFor(b.value), now + 0.07, {
+    gain: 0.16, decay: 0.3, pan: this.panFor(a.x)
+  });
+  this.tick(now + 0.2, 1600, 0.12, 0);
+
+  if (over) this.gameOver(now + SoundManager.MESSAGE_TIME);
+};
+
+// Hammer: a low thump and a burst of crackling shards
+SoundManager.prototype.smash = function (tile) {
+  if (!this.ready()) return;
+
+  var now   = this.now();
+  var pan   = this.panFor(tile.x);
+  var voice = this.voice({ wet: 0.12, pan: pan });
+
+  if (voice) {
+    // Step 1: the thump
+    this.osc(voice, {
+      freq: 160, endFreq: 55, when: now,
+      attack: 0.003, duration: 0.22, gain: 0.4
+    });
+
+    // Step 2: the shards
+    this.noise(voice, {
+      when: now + 0.01, attack: 0.002, duration: 0.2, gain: 0.3,
+      filter: { type: "highpass", from: 3000, to: 1200, Q: 0.8 }
+    });
+    this.seal(voice);
+  }
+
+  // Step 3: the tile's note, cracked a semitone flat
+  this.mallet(this.noteFor(tile.value) * Math.pow(2, -1 / 12), now + 0.02, {
+    gain: 0.14, decay: 0.2, pan: pan, dark: true
+  });
+};
+
+// Energy bar full: a quick rising arpeggio capped by a bell
+SoundManager.prototype.energyFull = function (when) {
+  var self = this;
+
+  [12, 16, 19, 24].forEach(function (semis, i) {
+    self.mallet(self.semitones(semis), when + i * 0.05, {
+      gain: 0.14, decay: 0.3, wet: 0.25
+    });
+  });
+  this.bell(this.semitones(36), when + 0.22, 0.08);
+};
+
+// Boss mode switched: a bright rising major triad with sparkles (on),
+// or the same triad falling (off)
+SoundManager.prototype.bossMode = function (on) {
+  if (!this.ready()) return;
+
+  var self  = this;
+  var now   = this.now();
+  var notes = on ? [0, 4, 7, 12, 16] : [12, 7, 4, 0];
+
+  notes.forEach(function (semis, i) {
+    self.mallet(self.semitones(semis), now + i * 0.07, {
+      gain: 0.2, decay: 0.6, pan: (i - 2) * 0.12, wet: 0.3
+    });
+  });
+
+  if (on) this.sparkle(now + notes.length * 0.07 + 0.05);
+};
+
 // ---------------------------------------------------------------------------
 // Composite sounds
 
@@ -265,10 +393,12 @@ SoundManager.prototype.swish = function (direction, movedCount, when) {
   this.seal(voice);
 };
 
-// Plays the merges of one move as a quick upward strum.
-// Returns { end, topFreq } so follow-up sounds can be placed after it.
-SoundManager.prototype.mergeChord = function (merges, when) {
+// Plays the merges of one move as a quick upward strum, lifted by a whole
+// tone per combo level. Returns { end, topFreq } so follow-up sounds can be
+// placed after it.
+SoundManager.prototype.mergeChord = function (merges, when, comboLevel) {
   var self  = this;
+  var lift  = Math.pow(2, 2 * comboLevel / 12);
 
   // Step 1: keep the highest notes, ordered low to high
   var notes = merges.slice().sort(function (a, b) {
@@ -281,7 +411,8 @@ SoundManager.prototype.mergeChord = function (merges, when) {
 
   // Step 3: strum; bigger tiles ring longer, and big ones shimmer
   notes.forEach(function (merge, i) {
-    var freq   = self.noteFor(merge.value);
+    var freq   = Math.min(self.noteFor(merge.value) * lift,
+                          SoundManager.MAX_FREQ);
     var step   = self.stepFor(merge.value);
     var at     = when + i * SoundManager.STRUM;
     var pan    = self.panFor(merge.x);

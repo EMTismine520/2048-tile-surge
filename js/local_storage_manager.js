@@ -22,6 +22,7 @@ function LocalStorageManager() {
   this.bestScoreKey     = "bestScore";
   this.gameStateKey     = "gameState";
   this.soundMutedKey    = "soundMuted";
+  this.bossModeKey      = "bossMode";
   this.supportTestKey   = "test"; // Throwaway key used to probe localStorage
 
   var supported = this.localStorageSupported();
@@ -79,4 +80,13 @@ LocalStorageManager.prototype.getSoundMuted = function () {
 
 LocalStorageManager.prototype.setSoundMuted = function (muted) {
   this.storage.setItem(this.soundMutedKey, muted);
+};
+
+// Boss mode switch (stored as the string "true"/"false"; default off)
+LocalStorageManager.prototype.getBossMode = function () {
+  return this.storage.getItem(this.bossModeKey) === "true";
+};
+
+LocalStorageManager.prototype.setBossMode = function (on) {
+  this.storage.setItem(this.bossModeKey, on);
 };

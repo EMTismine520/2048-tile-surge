@@ -1,8 +1,11 @@
 // Movement directions; the numbers are shared with GameManager.VECTORS
 var DIRECTIONS = { UP: 0, RIGHT: 1, DOWN: 2, LEFT: 3 };
 
-var KEY_R = 82;
-var KEY_M = 77;
+var KEY_R     = 82;
+var KEY_M     = 77;
+var KEY_U     = 85;
+var KEY_ENTER = 13;
+var KEY_ESC   = 27;
 
 // Minimum swipe distance (px) that counts as a move
 var SWIPE_THRESHOLD = 10;
@@ -64,6 +67,18 @@ KeyboardInputManager.prototype.listen = function () {
                     event.shiftKey;
     var mapped    = map[event.which];
 
+    // Esc closes a dialog or puts an armed item away
+    if (event.which === KEY_ESC) {
+      self.cancel(event);
+      return;
+    }
+
+    // Typing in the boss key field: only Enter means something to the game
+    if (self.isTextField(event.target)) {
+      if (event.which === KEY_ENTER) self.submitBossKey(event);
+      return;
+    }
+
     if (!modifiers) {
       if (mapped !== undefined) {
         event.preventDefault();
@@ -71,9 +86,15 @@ KeyboardInputManager.prototype.listen = function () {
       }
     }
 
-    // R key restarts the game
+    // R key restarts the game (asking first when there is progress)
     if (!modifiers && event.which === KEY_R) {
-      self.restart(event);
+      self.requestRestart(event);
+    }
+
+    // U key undoes the last move
+    if (!modifiers && event.which === KEY_U) {
+      event.preventDefault();
+      self.emit("useItem", "undo");
     }
 
     // M key mutes/unmutes the sound effects
@@ -84,17 +105,40 @@ KeyboardInputManager.prototype.listen = function () {
 
   // Respond to button presses
   this.bindButtonPress(".retry-button", this.restart);
-  this.bindButtonPress(".restart-button", this.restart);
+  this.bindButtonPress(".confirm-restart", this.restart);
+  this.bindButtonPress(".restart-button", this.requestRestart);
   this.bindButtonPress(".keep-playing-button", this.keepPlaying);
-  this.bindButtonPress(".clear-button", this.clearTiles);
+  this.bindButtonPress(".item-button", this.useItem);
+  this.bindButtonPress(".undo-over-button", this.useItem);
   this.bindButtonPress(".revive-button", this.revive);
   this.bindButtonPress(".sound-button", this.toggleSound);
+  this.bindButtonPress(".boss-button", this.openBoss);
+  this.bindButtonPress(".boss-submit", this.submitBossKey);
+  this.bindButtonPress(".boss-off", this.disableBoss);
+  this.bindButtonPress(".dialog-cancel", this.cancel);
+
+  // A tap on a dialog's dimmed backdrop (outside its card) closes it.
+  // Dialogs sit outside .app, so taps there produce normal clicks.
+  Array.prototype.forEach.call(document.querySelectorAll(".dialog"),
+    function (dialog) {
+      dialog.addEventListener("click", function (event) {
+        if (event.target === dialog) self.cancel(event);
+      });
+    });
+
+  // Mouse clicks on the board pick tiles for swap / hammer (touch taps are
+  // handled with the swipes below, since touch never produces a click here)
+  var board = document.querySelector(".game-container");
+  board.addEventListener("click", function (event) {
+    self.emit("boardTap", self.cellAt(event.clientX, event.clientY));
+  });
 
   // Respond to swipe events anywhere on the screen. Preventing the default
   // on touchstart keeps the page from scrolling and stops the browser from
   // synthesizing a click, so buttons fire once (from their touchend binding)
   var touchStartClientX, touchStartClientY;
   var swipeActive = false;
+  var onBoard     = false;
   var swipeArea   = document.querySelector(".app");
 
   swipeArea.addEventListener(this.eventTouchstart, function (event) {
@@ -113,6 +157,7 @@ KeyboardInputManager.prototype.listen = function () {
     var start = self.getTouchPoint(event, false);
     touchStartClientX = start.x;
     touchStartClientY = start.y;
+    onBoard           = board.contains(event.target);
   });
 
   swipeArea.addEventListener(this.eventTouchmove, function (event) {
@@ -141,8 +186,30 @@ KeyboardInputManager.prototype.listen = function () {
       self.emit("move", absDx > absDy ?
         (dx > 0 ? DIRECTIONS.RIGHT : DIRECTIONS.LEFT) :
         (dy > 0 ? DIRECTIONS.DOWN : DIRECTIONS.UP));
+    } else if (onBoard) {
+      // A tap on the board picks a tile for swap / hammer
+      self.emit("boardTap", self.cellAt(end.x, end.y));
     }
   });
+};
+
+// Grid cell {x, y} under a viewport point, or null outside the grid
+KeyboardInputManager.prototype.cellAt = function (clientX, clientY) {
+  var grid = document.querySelector(".grid-container");
+  var size = grid.querySelectorAll(".grid-row").length;
+  var rect = grid.getBoundingClientRect();
+
+  var x = Math.floor((clientX - rect.left) / rect.width * size);
+  var y = Math.floor((clientY - rect.top) / rect.height * size);
+
+  if (x < 0 || y < 0 || x >= size || y >= size) return null;
+  return { x: x, y: y };
+};
+
+// Whether the element takes typed text (keys typed there aren't game keys)
+KeyboardInputManager.prototype.isTextField = function (element) {
+  return !!element && (element.tagName === "INPUT" ||
+                       element.tagName === "TEXTAREA");
 };
 
 // Whether the element is a button or sits inside one
@@ -171,15 +238,46 @@ KeyboardInputManager.prototype.restart = function (event) {
   this.emit("restart");
 };
 
+// "New game" button / R key: restart, confirming first if needed
+KeyboardInputManager.prototype.requestRestart = function (event) {
+  event.preventDefault();
+  this.emit("requestRestart");
+};
+
 KeyboardInputManager.prototype.keepPlaying = function (event) {
   event.preventDefault();
   this.emit("keepPlaying");
 };
 
-// "Clear tiles" button: ask the game to remove the smallest tiles
-KeyboardInputManager.prototype.clearTiles = function (event) {
+// Item buttons (and the undo button on the game-over screen): the item
+// comes from the button's data-item attribute
+KeyboardInputManager.prototype.useItem = function (event, button) {
   event.preventDefault();
-  this.emit("clearTiles");
+  this.emit("useItem", button.getAttribute("data-item"));
+};
+
+// Esc, cancel buttons and dialog backdrops
+KeyboardInputManager.prototype.cancel = function (event) {
+  event.preventDefault();
+  this.emit("cancel");
+};
+
+// Key button in the top bar: open the boss mode dialog
+KeyboardInputManager.prototype.openBoss = function (event) {
+  event.preventDefault();
+  this.emit("openBoss");
+};
+
+// Confirm button / Enter in the key field: check the typed boss key
+KeyboardInputManager.prototype.submitBossKey = function (event) {
+  event.preventDefault();
+  this.emit("submitBossKey", document.querySelector(".boss-input").value);
+};
+
+// "Turn off boss mode" button
+KeyboardInputManager.prototype.disableBoss = function (event) {
+  event.preventDefault();
+  this.emit("disableBoss");
 };
 
 // "Revive" button on the game-over screen
@@ -204,16 +302,25 @@ KeyboardInputManager.prototype.isReleasedOn = function (event, button) {
          point.clientY >= rect.top  && point.clientY <= rect.bottom;
 };
 
+// Binds fn(event, button) to every button matching the selector
 KeyboardInputManager.prototype.bindButtonPress = function (selector, fn) {
   var self    = this;
-  var button  = document.querySelector(selector);
-  var handler = fn.bind(this);
+  var buttons = document.querySelectorAll(selector);
 
-  button.addEventListener("click", handler);
+  Array.prototype.forEach.call(buttons, function (button) {
+    var handler = function (event) {
+      fn.call(self, event, button);
+    };
 
-  // A touch counts as a press only if the finger is lifted on the button;
-  // a swipe that merely started on it must not trigger it
-  button.addEventListener(this.eventTouchend, function (event) {
-    if (self.isReleasedOn(event, button)) handler(event);
+    button.addEventListener("click", handler);
+
+    // A touch counts as a press only if the finger is lifted on the button;
+    // a swipe that merely started on it must not trigger it. Cancelling the
+    // touchend stops the browser from also sending a click (dialogs sit
+    // outside .app, where touchstart isn't cancelled).
+    button.addEventListener(self.eventTouchend, function (event) {
+      if (event.cancelable) event.preventDefault();
+      if (self.isReleasedOn(event, button)) handler(event);
+    });
   });
 };
