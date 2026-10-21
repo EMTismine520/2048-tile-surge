@@ -194,8 +194,26 @@ KeyboardInputManager.prototype.toggleSound = function (event) {
   this.emit("toggleSound");
 };
 
+// Whether a touch/pointer release happened inside the button's bounds
+KeyboardInputManager.prototype.isReleasedOn = function (event, button) {
+  var point = window.navigator.msPointerEnabled ?
+              event : event.changedTouches[0];
+  var rect  = button.getBoundingClientRect();
+
+  return point.clientX >= rect.left && point.clientX <= rect.right &&
+         point.clientY >= rect.top  && point.clientY <= rect.bottom;
+};
+
 KeyboardInputManager.prototype.bindButtonPress = function (selector, fn) {
-  var button = document.querySelector(selector);
-  button.addEventListener("click", fn.bind(this));
-  button.addEventListener(this.eventTouchend, fn.bind(this));
+  var self    = this;
+  var button  = document.querySelector(selector);
+  var handler = fn.bind(this);
+
+  button.addEventListener("click", handler);
+
+  // A touch counts as a press only if the finger is lifted on the button;
+  // a swipe that merely started on it must not trigger it
+  button.addEventListener(this.eventTouchend, function (event) {
+    if (self.isReleasedOn(event, button)) handler(event);
+  });
 };

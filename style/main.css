@@ -553,7 +553,10 @@ button {
   background: rgba(8, 6, 28, .62);
   -webkit-backdrop-filter: blur(6px) saturate(1.2);
   backdrop-filter: blur(6px) saturate(1.2);
-  animation: fade-in 420ms ease 700ms both;
+  /* 淡入完成前（含 700ms 延迟）不响应触摸，避免看不见的按钮被误触 */
+  animation:
+    fade-in 420ms ease 700ms both,
+    message-lock 1240ms linear;
 }
 
 .game-message.game-won, .game-message.game-over {
@@ -625,6 +628,11 @@ button {
 @keyframes fade-in {
   0%   { opacity: 0; }
   100% { opacity: 1; }
+}
+
+/* 时长 = 卡片动画的延迟 + 时长（760ms + 480ms）；结束后恢复默认的可点击 */
+@keyframes message-lock {
+  0%, 100% { pointer-events: none; }
 }
 
 @keyframes card-in {
