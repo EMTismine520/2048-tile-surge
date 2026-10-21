@@ -190,13 +190,15 @@ hr {
       height: 40px;
       line-height: 42px;
       margin-left: 9px; }
-      .game-container .game-message a.keep-playing-button {
+      .game-container .game-message a.keep-playing-button, .game-container .game-message a.revive-button {
         display: none; }
     .game-container .game-message.game-won {
       background: rgba(237, 194, 46, 0.5);
       color: #f9f6f2; }
       .game-container .game-message.game-won a.keep-playing-button {
         display: inline-block; }
+    .game-container .game-message.game-over a.revive-button {
+      display: inline-block; }
     .game-container .game-message.game-won, .game-container .game-message.game-over {
       display: block; }
 
@@ -529,6 +531,22 @@ hr {
   text-align: center;
   float: right; }
 
+.game-actions {
+  margin-top: 20px;
+  text-align: center; }
+
+.clear-button {
+  display: inline-block;
+  background: #8f7a66;
+  border-radius: 3px;
+  padding: 0 20px;
+  text-decoration: none;
+  color: #f9f6f2;
+  height: 40px;
+  line-height: 42px;
+  display: block;
+  text-align: center; }
+
 .game-explanation {
   margin-top: 50px; }
 
@@ -623,13 +641,15 @@ hr {
         height: 40px;
         line-height: 42px;
         margin-left: 9px; }
-        .game-container .game-message a.keep-playing-button {
+        .game-container .game-message a.keep-playing-button, .game-container .game-message a.revive-button {
           display: none; }
       .game-container .game-message.game-won {
         background: rgba(237, 194, 46, 0.5);
         color: #f9f6f2; }
         .game-container .game-message.game-won a.keep-playing-button {
           display: inline-block; }
+      .game-container .game-message.game-over a.revive-button {
+        display: inline-block; }
       .game-container .game-message.game-won, .game-container .game-message.game-over {
         display: block; }
 

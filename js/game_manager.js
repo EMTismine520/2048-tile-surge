@@ -1,6 +1,15 @@
 // Probability that a newly spawned tile is a 4 (otherwise it is a 2)
 GameManager.NEW_TILE_FOUR_PROBABILITY = 0.1;
 
+// Number of smallest tiles removed by the "Clear tiles" button
+GameManager.CLEAR_COUNT = 3;
+
+// Number of smallest tiles removed when reviving from game over
+GameManager.REVIVE_CLEAR_COUNT = 6;
+
+// Max "Clear tiles" uses per game; null means unlimited
+GameManager.CLEAR_LIMIT = null;
+
 // Tile movement vectors, indexed by direction: 0 up, 1 right, 2 down, 3 left
 GameManager.VECTORS = [
   { x: 0,  y: -1 }, // Up
@@ -20,6 +29,8 @@ function GameManager(size, InputManager, Actuator, StorageManager) {
   this.inputManager.on("move", this.move.bind(this));
   this.inputManager.on("restart", this.restart.bind(this));
   this.inputManager.on("keepPlaying", this.keepPlaying.bind(this));
+  this.inputManager.on("clearTiles", this.clearTiles.bind(this));
+  this.inputManager.on("revive", this.revive.bind(this));
 
   this.setup();
 }
@@ -42,6 +53,51 @@ GameManager.prototype.isGameTerminated = function () {
   return this.over || (this.won && !this.keepPlayingMode);
 };
 
+// Removes the `count` smallest tiles, always leaving at least one tile
+// on the board (an empty board has no moves and would soft-lock the game)
+GameManager.prototype.removeSmallestTiles = function (count) {
+  var removable = Math.min(count, this.grid.allTiles().length - 1);
+  if (removable <= 0) return;
+
+  // Reset previous positions so the remaining tiles don't replay old slides
+  this.prepareTiles();
+
+  this.grid.smallestTiles(removable).forEach(function (tile) {
+    this.grid.removeTile(tile);
+  }, this);
+};
+
+// Whether the "Clear tiles" button can be used right now
+GameManager.prototype.canClear = function () {
+  var limit = GameManager.CLEAR_LIMIT;
+
+  if (this.isGameTerminated()) return false;
+  if (limit !== null && this.clearsUsed >= limit) return false;
+
+  return this.grid.allTiles().length > 1;
+};
+
+// "Clear tiles": remove the smallest tiles and keep playing
+// (no new tile is spawned, since this isn't a move)
+GameManager.prototype.clearTiles = function () {
+  if (!this.canClear()) return;
+
+  this.clearsUsed++;
+  this.removeSmallestTiles(GameManager.CLEAR_COUNT);
+  this.actuate();
+};
+
+// "Revive": on game over, remove the smallest tiles and keep playing
+// with the current score
+GameManager.prototype.revive = function () {
+  if (!this.over) return;
+
+  this.removeSmallestTiles(GameManager.REVIVE_CLEAR_COUNT);
+  this.over = false;
+  this.actuator.continueGame(); // Clear the game over message
+  this.actuate();
+};
+
 // Set up the game
 GameManager.prototype.setup = function () {
   var previousState = this.storageManager.getGameState();
@@ -55,12 +111,15 @@ GameManager.prototype.setup = function () {
     this.won         = previousState.won;
     // The saved key stays "keepPlaying" so existing saves keep working
     this.keepPlayingMode = previousState.keepPlaying;
+    // Saves from before "Clear tiles" existed have no clearsUsed
+    this.clearsUsed  = previousState.clearsUsed || 0;
   } else {
     this.grid        = new Grid(this.size);
     this.score       = 0;
     this.over        = false;
     this.won         = false;
     this.keepPlayingMode = false;
+    this.clearsUsed  = 0;
 
     // Add the initial tiles
     this.addStartTiles();
@@ -117,7 +176,8 @@ GameManager.prototype.serialize = function () {
     score:       this.score,
     over:        this.over,
     won:         this.won,
-    keepPlaying: this.keepPlayingMode
+    keepPlaying: this.keepPlayingMode,
+    clearsUsed:  this.clearsUsed
   };
 };
 

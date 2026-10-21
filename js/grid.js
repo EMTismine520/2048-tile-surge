@@ -62,6 +62,38 @@ Grid.prototype.eachCell = function (callback) {
   }
 };
 
+// Returns every tile currently on the grid
+Grid.prototype.allTiles = function () {
+  var tiles = [];
+
+  this.eachCell(function (x, y, tile) {
+    if (tile) {
+      tiles.push(tile);
+    }
+  });
+
+  return tiles;
+};
+
+// Returns the `count` tiles with the smallest values.
+// Ties are broken randomly so the choice isn't biased towards one board side.
+Grid.prototype.smallestTiles = function (count) {
+  // Step 1: pair each tile with a random tie-break key
+  var ranked = this.allTiles().map(function (tile) {
+    return { tile: tile, tieBreak: Math.random() };
+  });
+
+  // Step 2: order by value, then by the random key
+  ranked.sort(function (a, b) {
+    return (a.tile.value - b.tile.value) || (a.tieBreak - b.tieBreak);
+  });
+
+  // Step 3: keep the first `count` tiles
+  return ranked.slice(0, count).map(function (entry) {
+    return entry.tile;
+  });
+};
+
 // Check if there are any cells available
 Grid.prototype.cellsAvailable = function () {
   return !!this.availableCells().length;

@@ -222,7 +222,7 @@ hr {
         @include button;
         margin-left: 9px;
 
-        &.keep-playing-button {
+        &.keep-playing-button, &.revive-button {
           display: none;
         }
       }
@@ -237,6 +237,10 @@ hr {
         a.keep-playing-button {
           display: inline-block;
         }
+      }
+
+      &.game-over a.revive-button {
+        display: inline-block;
       }
 
       &.game-won, &.game-over {
@@ -462,6 +466,18 @@ hr {
   display: block;
   text-align: center;
   float: right;
+}
+
+// "Clear tiles" button row under the board
+.game-actions {
+  margin-top: 20px;
+  text-align: center;
+}
+
+.clear-button {
+  @include button;
+  display: block;
+  text-align: center;
 }
 
 .game-explanation {

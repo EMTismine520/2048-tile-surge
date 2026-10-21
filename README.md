@@ -17,6 +17,10 @@ python -m http.server 8000
 
 - Move: arrow keys, WASD, or Vim keys (HJKL); swipe on touch screens.
 - Restart: `R` key or the "New Game" button.
+- Clear tiles: the "Clear tiles" button under the board removes the 3 smallest tiles (no new tile is spawned) so you can keep playing.
+- Revive: on the game-over screen, "Revive" removes the 6 smallest tiles and continues with your current score. It can be used any number of times.
+
+The numbers live in `GameManager.CLEAR_COUNT`, `GameManager.REVIVE_CLEAR_COUNT` and `GameManager.CLEAR_LIMIT` (`js/game_manager.js`). Set `CLEAR_LIMIT` to a number to cap "Clear tiles" uses per game; `null` means unlimited. Both actions always leave at least one tile on the board.
 
 ## Project structure
 

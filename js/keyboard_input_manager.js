@@ -80,6 +80,8 @@ KeyboardInputManager.prototype.listen = function () {
   this.bindButtonPress(".retry-button", this.restart);
   this.bindButtonPress(".restart-button", this.restart);
   this.bindButtonPress(".keep-playing-button", this.keepPlaying);
+  this.bindButtonPress(".clear-button", this.clearTiles);
+  this.bindButtonPress(".revive-button", this.revive);
 
   // Respond to swipe events
   var touchStartClientX, touchStartClientY;
@@ -144,6 +146,18 @@ KeyboardInputManager.prototype.restart = function (event) {
 KeyboardInputManager.prototype.keepPlaying = function (event) {
   event.preventDefault();
   this.emit("keepPlaying");
+};
+
+// "Clear tiles" button: ask the game to remove the smallest tiles
+KeyboardInputManager.prototype.clearTiles = function (event) {
+  event.preventDefault();
+  this.emit("clearTiles");
+};
+
+// "Revive" button on the game-over screen
+KeyboardInputManager.prototype.revive = function (event) {
+  event.preventDefault();
+  this.emit("revive");
 };
 
 KeyboardInputManager.prototype.bindButtonPress = function (selector, fn) {
