@@ -18,11 +18,16 @@ GameManager.VECTORS = [
   { x: -1, y: 0 }   // Left
 ];
 
-function GameManager(size, InputManager, Actuator, StorageManager) {
+// Tiles from this value up get a fanfare the first time they appear
+GameManager.MILESTONE_VALUE = 128;
+
+function GameManager(size, InputManager, Actuator, StorageManager,
+                     SoundManager) {
   this.size           = size; // Size of the grid
   this.inputManager   = new InputManager();
   this.storageManager = new StorageManager();
   this.actuator       = new Actuator();
+  this.soundManager   = new SoundManager(size);
 
   this.startTiles     = 2;
 
@@ -31,6 +36,12 @@ function GameManager(size, InputManager, Actuator, StorageManager) {
   this.inputManager.on("keepPlaying", this.keepPlaying.bind(this));
   this.inputManager.on("clearTiles", this.clearTiles.bind(this));
   this.inputManager.on("revive", this.revive.bind(this));
+  this.inputManager.on("toggleSound", this.toggleSound.bind(this));
+
+  // Restore the saved mute setting (silently)
+  var muted = this.storageManager.getSoundMuted();
+  this.soundManager.setMuted(muted, false);
+  this.actuator.updateSoundButton(muted);
 
   this.setup();
 }
@@ -40,12 +51,23 @@ GameManager.prototype.restart = function () {
   this.storageManager.clearGameState();
   this.actuator.continueGame(); // Clear the game won/lost message
   this.setup();
+  this.soundManager.restart(this.grid.allTiles());
 };
 
 // Keep playing after winning (allows going over the win tile)
 GameManager.prototype.keepPlaying = function () {
   this.keepPlayingMode = true;
   this.actuator.continueGame(); // Clear the game won/lost message
+  this.soundManager.keepPlaying();
+};
+
+// Mute/unmute sound effects and remember the choice
+GameManager.prototype.toggleSound = function () {
+  var muted = !this.soundManager.muted;
+
+  this.storageManager.setSoundMuted(muted);
+  this.soundManager.setMuted(muted, true);
+  this.actuator.updateSoundButton(muted);
 };
 
 // Return true if the game is lost, or has won and the user hasn't kept playing
@@ -54,17 +76,21 @@ GameManager.prototype.isGameTerminated = function () {
 };
 
 // Removes the `count` smallest tiles, always leaving at least one tile
-// on the board (an empty board has no moves and would soft-lock the game)
+// on the board (an empty board has no moves and would soft-lock the game).
+// Returns the removed tiles.
 GameManager.prototype.removeSmallestTiles = function (count) {
   var removable = Math.min(count, this.grid.allTiles().length - 1);
-  if (removable <= 0) return;
+  if (removable <= 0) return [];
 
   // Reset previous positions so the remaining tiles don't replay old slides
   this.prepareTiles();
 
-  this.grid.smallestTiles(removable).forEach(function (tile) {
+  var removed = this.grid.smallestTiles(removable);
+  removed.forEach(function (tile) {
     this.grid.removeTile(tile);
   }, this);
+
+  return removed;
 };
 
 // Whether the "Clear tiles" button can be used right now
@@ -80,10 +106,14 @@ GameManager.prototype.canClear = function () {
 // "Clear tiles": remove the smallest tiles and keep playing
 // (no new tile is spawned, since this isn't a move)
 GameManager.prototype.clearTiles = function () {
-  if (!this.canClear()) return;
+  if (!this.canClear()) {
+    this.soundManager.blocked();
+    return;
+  }
 
   this.clearsUsed++;
-  this.removeSmallestTiles(GameManager.CLEAR_COUNT);
+  var removed = this.removeSmallestTiles(GameManager.CLEAR_COUNT);
+  this.soundManager.clear(removed);
   this.actuate();
 };
 
@@ -95,6 +125,7 @@ GameManager.prototype.revive = function () {
   this.removeSmallestTiles(GameManager.REVIVE_CLEAR_COUNT);
   this.over = false;
   this.actuator.continueGame(); // Clear the game over message
+  this.soundManager.revive();
   this.actuate();
 };
 
@@ -125,6 +156,11 @@ GameManager.prototype.setup = function () {
     this.addStartTiles();
   }
 
+  // A resumed game that already holds the best score has had its
+  // "new best" moment; a fresh game gets one when it passes the record
+  this.bestAnnounced = this.score > 0 &&
+                       this.score >= this.storageManager.getBestScore();
+
   // Update the actuator
   this.actuate();
 };
@@ -136,14 +172,17 @@ GameManager.prototype.addStartTiles = function () {
   }
 };
 
-// Adds a tile in a random position
+// Adds a tile in a random position; returns it (null if the board is full)
 GameManager.prototype.addRandomTile = function () {
   if (this.grid.cellsAvailable()) {
     var value = Math.random() < GameManager.NEW_TILE_FOUR_PROBABILITY ? 4 : 2;
     var tile = new Tile(this.grid.randomAvailableCell(), value);
 
     this.grid.insertTile(tile);
+    return tile;
   }
+
+  return null;
 };
 
 // Sends the updated grid to the actuator
@@ -208,6 +247,13 @@ GameManager.prototype.move = function (direction) {
   var vector     = this.getVector(direction);
   var traversals = this.buildTraversals(vector);
   var moved      = false;
+  var movedCount = 0;
+  var merges     = [];
+
+  // Board state before the move, to detect what this move achieved
+  var maxBefore  = this.maxTileValue();
+  var bestBefore = this.storageManager.getBestScore();
+  var wonBefore  = this.won;
 
   // Save the current tile positions and remove merger information
   this.prepareTiles();
@@ -236,6 +282,9 @@ GameManager.prototype.move = function (direction) {
           // Update the score
           self.score += merged.value;
 
+          // Remember the merge for the sound effects
+          merges.push({ value: merged.value, x: merged.x, y: merged.y });
+
           // The mighty win tile
           if (merged.value === Tile.WIN_VALUE) self.won = true;
         } else {
@@ -244,20 +293,67 @@ GameManager.prototype.move = function (direction) {
 
         if (!self.positionsEqual(cell, tile)) {
           moved = true; // The tile moved from its original cell!
+          movedCount++;
         }
       }
     });
   });
 
   if (moved) {
-    this.addRandomTile();
+    var spawned = this.addRandomTile();
 
     if (!this.movesAvailable()) {
       this.over = true; // Game over!
     }
 
+    this.soundManager.move({
+      direction:  direction,
+      movedCount: movedCount,
+      merges:     merges,
+      spawned:    spawned,
+      milestone:  this.milestoneReached(merges, maxBefore),
+      newBest:    this.claimNewBest(bestBefore),
+      won:        this.won && !wonBefore,
+      over:       this.over
+    });
+
     this.actuate();
+  } else {
+    this.soundManager.blocked(); // Nothing could move that way
   }
+};
+
+// Largest tile value on the board (0 when empty)
+GameManager.prototype.maxTileValue = function () {
+  return this.grid.allTiles().reduce(function (max, tile) {
+    return Math.max(max, tile.value);
+  }, 0);
+};
+
+// Value of a new largest tile created by these merges that deserves a
+// fanfare (at least MILESTONE_VALUE, and not the win tile, which has its
+// own sound); 0 when there is none
+GameManager.prototype.milestoneReached = function (merges, maxBefore) {
+  var best = merges.reduce(function (max, merge) {
+    return Math.max(max, merge.value);
+  }, 0);
+
+  if (best <= maxBefore || best < GameManager.MILESTONE_VALUE ||
+      best === Tile.WIN_VALUE) {
+    return 0;
+  }
+
+  return best;
+};
+
+// True the first time this game's score passes an existing best score
+GameManager.prototype.claimNewBest = function (bestBefore) {
+  if (this.bestAnnounced || bestBefore <= 0 || this.score <= bestBefore) {
+    return false;
+  }
+
+  this.bestAnnounced = true;
+  return true;
 };
 
 // Get the vector representing the chosen direction

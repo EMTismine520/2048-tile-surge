@@ -2,6 +2,7 @@
 var DIRECTIONS = { UP: 0, RIGHT: 1, DOWN: 2, LEFT: 3 };
 
 var KEY_R = 82;
+var KEY_M = 77;
 
 // Minimum swipe distance (px) that counts as a move
 var SWIPE_THRESHOLD = 10;
@@ -74,6 +75,11 @@ KeyboardInputManager.prototype.listen = function () {
     if (!modifiers && event.which === KEY_R) {
       self.restart(event);
     }
+
+    // M key mutes/unmutes the sound effects
+    if (!modifiers && event.which === KEY_M) {
+      self.toggleSound(event);
+    }
   });
 
   // Respond to button presses
@@ -82,6 +88,7 @@ KeyboardInputManager.prototype.listen = function () {
   this.bindButtonPress(".keep-playing-button", this.keepPlaying);
   this.bindButtonPress(".clear-button", this.clearTiles);
   this.bindButtonPress(".revive-button", this.revive);
+  this.bindButtonPress(".sound-button", this.toggleSound);
 
   // Respond to swipe events
   var touchStartClientX, touchStartClientY;
@@ -158,6 +165,12 @@ KeyboardInputManager.prototype.clearTiles = function (event) {
 KeyboardInputManager.prototype.revive = function (event) {
   event.preventDefault();
   this.emit("revive");
+};
+
+// Sound button / M key: mute or unmute the sound effects
+KeyboardInputManager.prototype.toggleSound = function (event) {
+  event.preventDefault();
+  this.emit("toggleSound");
 };
 
 KeyboardInputManager.prototype.bindButtonPress = function (selector, fn) {

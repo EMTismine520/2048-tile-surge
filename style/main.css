@@ -544,8 +544,21 @@ hr {
   color: #f9f6f2;
   height: 40px;
   line-height: 42px;
-  display: block;
   text-align: center; }
+
+.sound-button {
+  display: inline-block;
+  background: #8f7a66;
+  border-radius: 3px;
+  padding: 0 20px;
+  text-decoration: none;
+  color: #f9f6f2;
+  height: 40px;
+  line-height: 42px;
+  margin-left: 9px;
+  text-align: center; }
+  .sound-button.sound-muted {
+    opacity: .55; }
 
 .game-explanation {
   margin-top: 50px; }

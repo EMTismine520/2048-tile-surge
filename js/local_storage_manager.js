@@ -21,6 +21,7 @@ window.fakeStorage = {
 function LocalStorageManager() {
   this.bestScoreKey     = "bestScore";
   this.gameStateKey     = "gameState";
+  this.soundMutedKey    = "soundMuted";
   this.supportTestKey   = "test"; // Throwaway key used to probe localStorage
 
   var supported = this.localStorageSupported();
@@ -69,4 +70,13 @@ LocalStorageManager.prototype.setGameState = function (gameState) {
 
 LocalStorageManager.prototype.clearGameState = function () {
   this.storage.removeItem(this.gameStateKey);
+};
+
+// Sound mute setting (stored as the string "true"/"false"; default unmuted)
+LocalStorageManager.prototype.getSoundMuted = function () {
+  return this.storage.getItem(this.soundMutedKey) === "true";
+};
+
+LocalStorageManager.prototype.setSoundMuted = function (muted) {
+  this.storage.setItem(this.soundMutedKey, muted);
 };

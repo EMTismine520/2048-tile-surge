@@ -3,6 +3,7 @@ function HTMLActuator() {
   this.scoreContainer   = document.querySelector(".score-container");
   this.bestContainer    = document.querySelector(".best-container");
   this.messageContainer = document.querySelector(".game-message");
+  this.soundButton      = document.querySelector(".sound-button");
 
   this.score = 0;
 }
@@ -136,4 +137,19 @@ HTMLActuator.prototype.clearMessage = function () {
   // IE only takes one value to remove at a time.
   this.messageContainer.classList.remove("game-won");
   this.messageContainer.classList.remove("game-over");
+};
+
+// Shows whether sound is muted on the sound button
+HTMLActuator.prototype.updateSoundButton = function (muted) {
+  var button = this.soundButton;
+
+  if (muted) {
+    button.classList.add("sound-muted");
+  } else {
+    button.classList.remove("sound-muted");
+  }
+
+  button.textContent = muted ? "Sound off" : "Sound on";
+  button.setAttribute("aria-pressed", muted ? "true" : "false");
+  button.setAttribute("title", muted ? "Unmute (M)" : "Mute (M)");
 };

@@ -468,7 +468,7 @@ hr {
   float: right;
 }
 
-// "Clear tiles" button row under the board
+// "Clear tiles" and sound buttons row under the board
 .game-actions {
   margin-top: 20px;
   text-align: center;
@@ -476,8 +476,17 @@ hr {
 
 .clear-button {
   @include button;
-  display: block;
   text-align: center;
+}
+
+.sound-button {
+  @include button;
+  margin-left: 9px;
+  text-align: center;
+
+  &.sound-muted {
+    opacity: .55;
+  }
 }
 
 .game-explanation {
