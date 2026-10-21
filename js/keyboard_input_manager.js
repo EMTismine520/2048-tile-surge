@@ -1,0 +1,153 @@
+// Movement directions; the numbers are shared with GameManager.VECTORS
+var DIRECTIONS = { UP: 0, RIGHT: 1, DOWN: 2, LEFT: 3 };
+
+var KEY_R = 82;
+
+// Minimum swipe distance (px) that counts as a move
+var SWIPE_THRESHOLD = 10;
+
+function KeyboardInputManager() {
+  this.events = {};
+
+  if (window.navigator.msPointerEnabled) {
+    //Internet Explorer 10 style
+    this.eventTouchstart    = "MSPointerDown";
+    this.eventTouchmove     = "MSPointerMove";
+    this.eventTouchend      = "MSPointerUp";
+  } else {
+    this.eventTouchstart    = "touchstart";
+    this.eventTouchmove     = "touchmove";
+    this.eventTouchend      = "touchend";
+  }
+
+  this.listen();
+}
+
+KeyboardInputManager.prototype.on = function (event, callback) {
+  if (!this.events[event]) {
+    this.events[event] = [];
+  }
+  this.events[event].push(callback);
+};
+
+KeyboardInputManager.prototype.emit = function (event, data) {
+  var callbacks = this.events[event];
+  if (callbacks) {
+    callbacks.forEach(function (callback) {
+      callback(data);
+    });
+  }
+};
+
+KeyboardInputManager.prototype.listen = function () {
+  var self = this;
+
+  var map = {
+    38: DIRECTIONS.UP,    // Up
+    39: DIRECTIONS.RIGHT, // Right
+    40: DIRECTIONS.DOWN,  // Down
+    37: DIRECTIONS.LEFT,  // Left
+    75: DIRECTIONS.UP,    // Vim up
+    76: DIRECTIONS.RIGHT, // Vim right
+    74: DIRECTIONS.DOWN,  // Vim down
+    72: DIRECTIONS.LEFT,  // Vim left
+    87: DIRECTIONS.UP,    // W
+    68: DIRECTIONS.RIGHT, // D
+    83: DIRECTIONS.DOWN,  // S
+    65: DIRECTIONS.LEFT   // A
+  };
+
+  // Respond to direction keys
+  document.addEventListener("keydown", function (event) {
+    var modifiers = event.altKey || event.ctrlKey || event.metaKey ||
+                    event.shiftKey;
+    var mapped    = map[event.which];
+
+    if (!modifiers) {
+      if (mapped !== undefined) {
+        event.preventDefault();
+        self.emit("move", mapped);
+      }
+    }
+
+    // R key restarts the game
+    if (!modifiers && event.which === KEY_R) {
+      self.restart(event);
+    }
+  });
+
+  // Respond to button presses
+  this.bindButtonPress(".retry-button", this.restart);
+  this.bindButtonPress(".restart-button", this.restart);
+  this.bindButtonPress(".keep-playing-button", this.keepPlaying);
+
+  // Respond to swipe events
+  var touchStartClientX, touchStartClientY;
+  var gameContainer = document.getElementsByClassName("game-container")[0];
+
+  gameContainer.addEventListener(this.eventTouchstart, function (event) {
+    if ((!window.navigator.msPointerEnabled && event.touches.length > 1) ||
+        event.targetTouches.length > 1) {
+      return; // Ignore if touching with more than 1 finger
+    }
+
+    var start = self.getTouchPoint(event, false);
+    touchStartClientX = start.x;
+    touchStartClientY = start.y;
+
+    event.preventDefault();
+  });
+
+  gameContainer.addEventListener(this.eventTouchmove, function (event) {
+    event.preventDefault();
+  });
+
+  gameContainer.addEventListener(this.eventTouchend, function (event) {
+    if ((!window.navigator.msPointerEnabled && event.touches.length > 0) ||
+        event.targetTouches.length > 0) {
+      return; // Ignore if still touching with one or more fingers
+    }
+
+    var end = self.getTouchPoint(event, true);
+
+    var dx = end.x - touchStartClientX;
+    var absDx = Math.abs(dx);
+
+    var dy = end.y - touchStartClientY;
+    var absDy = Math.abs(dy);
+
+    if (Math.max(absDx, absDy) > SWIPE_THRESHOLD) {
+      // (right : left) : (down : up)
+      self.emit("move", absDx > absDy ?
+        (dx > 0 ? DIRECTIONS.RIGHT : DIRECTIONS.LEFT) :
+        (dy > 0 ? DIRECTIONS.DOWN : DIRECTIONS.UP));
+    }
+  });
+};
+
+// Returns the {x, y} coordinates of a touch/pointer event;
+// isEnd selects the lifted finger (touchend) over the pressed one (touchstart)
+KeyboardInputManager.prototype.getTouchPoint = function (event, isEnd) {
+  if (window.navigator.msPointerEnabled) {
+    return { x: event.pageX, y: event.pageY };
+  }
+
+  var touch = isEnd ? event.changedTouches[0] : event.touches[0];
+  return { x: touch.clientX, y: touch.clientY };
+};
+
+KeyboardInputManager.prototype.restart = function (event) {
+  event.preventDefault();
+  this.emit("restart");
+};
+
+KeyboardInputManager.prototype.keepPlaying = function (event) {
+  event.preventDefault();
+  this.emit("keepPlaying");
+};
+
+KeyboardInputManager.prototype.bindButtonPress = function (selector, fn) {
+  var button = document.querySelector(selector);
+  button.addEventListener("click", fn.bind(this));
+  button.addEventListener(this.eventTouchend, fn.bind(this));
+};
