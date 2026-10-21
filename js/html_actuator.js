@@ -149,12 +149,17 @@ HTMLActuator.prototype.tileClasses = function (tile, positionClass) {
   return classes;
 };
 
-// The face of a tile showing its value
+// The face of a tile showing its value. The number sits in its own span so
+// the CSS has spare pseudo-elements for the high-tile decorations (sparkles,
+// crown, sheen)
 HTMLActuator.prototype.tileInner = function (tile) {
   var inner = document.createElement("div");
+  var value = document.createElement("span");
 
   inner.classList.add("tile-inner");
-  inner.textContent = tile.value;
+  value.classList.add("tile-value");
+  value.textContent = tile.value;
+  inner.appendChild(value);
 
   return inner;
 };

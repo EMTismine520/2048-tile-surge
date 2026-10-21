@@ -34,7 +34,9 @@ python -m http.server 8000
 
 ## Background
 
-The aurora behind the game follows the largest tile on the board, along the same color band as the tiles: mint/sky (up to 32), violet/magenta (64–128), rose/coral (256–512), orange/amber (1024), gold (2048+). Merges of 256 or more shake the board and flash the aurora.
+Tiles warm up as they grow: small values are cool and quiet (slate, teal, green), larger ones get brighter and glow harder (amber, orange, coral, rose, violet flame), and 2048 is gold. Tiles from 512 up carry decorations: twinkling stars (512+), a spinning flame border (1024), a crown and a periodic sheen (2048). Tiles above 2048 are obsidian with gold digits and a spinning rainbow border.
+
+The aurora behind the game follows the largest tile on the board, along the same color band: teal/green (up to 32), amber/orange (64–128), coral/rose (256–512), violet/rose (1024), gold (2048+). Merges of 256 or more shake the board and flash the aurora.
 
 ## Boss mode
 
@@ -75,7 +77,7 @@ style/
 
 ## Editing styles
 
-`style/main.css` is plain CSS; edit it directly. The board scales with the screen: everything is derived from `--board` (board side, sized to the space left between the energy bar and the item bar), `--gap` and `--cell` on `.game-container`. On tall screens `--spare` (on `.app`) spreads the extra height over the gaps, the energy bar and the item bar instead of leaving it empty around the board. Tile colors are the `--t` / `--fg` / `--glow` variables on each `.tile-N` rule, and `tile-len-N` classes (added by `html_actuator.js`) pick the font size by digit count. Aurora colors are `--aurora-1/2/3`, set per `[data-tier]`.
+`style/main.css` is plain CSS; edit it directly. The board scales with the screen: everything is derived from `--board-raw` (the space left between the energy bar and the item bar), from which `--gap` and `--cell` are rounded to whole pixels (where `round()` is supported) and `--board` is rebuilt, so tile edges stay crisp. The board clips tile glows at its edge (`overflow: hidden`); its glass rim is `.game-container::after`. On tall screens `--spare` (on `.app`) spreads the extra height over the gaps, the energy bar and the item bar instead of leaving it empty around the board. Tile colors are the `--t` / `--fg` / `--fg-shadow` / `--glow` variables on each `.tile-N` rule; `--edge` (the darker bottom edge) is derived from `--t`, and `--loop` holds a high tile's endless animation so it stacks with the appear/merge animations. `tile-len-N` classes (added by `html_actuator.js`) pick the font size by digit count. The number sits in `.tile-value` inside `.tile-inner`, which leaves pseudo-elements free for the decorations: `.tile-value::before/::after` (stars, crown) and `.tile-inner::before` (sheen); `.tile-inner::after` is the merge ring. Aurora colors are `--aurora-1/2/3`, set per `[data-tier]`.
 
 ## Notes
 

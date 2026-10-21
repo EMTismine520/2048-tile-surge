@@ -9,19 +9,26 @@
 @property --aurora-1 {
   syntax: "<color>";
   inherits: true;
-  initial-value: #3dffc8;
+  initial-value: #1aa9b0;
 }
 
 @property --aurora-2 {
   syntax: "<color>";
   inherits: true;
-  initial-value: #3dbbff;
+  initial-value: #27c487;
 }
 
 @property --aurora-3 {
   syntax: "<color>";
   inherits: true;
-  initial-value: #6a5cff;
+  initial-value: #3a4fd8;
+}
+
+/* 1024 火焰描边 / 超大方块彩虹描边的旋转角度 */
+@property --spin {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
 }
 
 :root {
@@ -29,7 +36,6 @@
   --bg-bottom: #150c3d;
   --panel: rgba(255, 255, 255, .08);
   --panel-edge: rgba(255, 255, 255, .14);
-  --board-bg: rgba(16, 9, 48, .72);
   --text: #f3f0ff;
   --muted: #b3acdf;
   --cyan: #3de8ff;
@@ -38,10 +44,10 @@
   --gold: #ffd83d;
   --coral: #ff5d5d;
 
-  /* 档位 1（最大方块 ≤ 32）：薄荷 / 天蓝 / 靛蓝 */
-  --aurora-1: #3dffc8;
-  --aurora-2: #3dbbff;
-  --aurora-3: #6a5cff;
+  /* 档位 1（最大方块 ≤ 32）：青 / 翠绿 / 深蓝 */
+  --aurora-1: #1aa9b0;
+  --aurora-2: #27c487;
+  --aurora-3: #3a4fd8;
 
   --ease-back: cubic-bezier(.34, 1.56, .64, 1);
   --slide: 110ms;
@@ -52,32 +58,32 @@
   transition: --aurora-1 1.2s ease, --aurora-2 1.2s ease, --aurora-3 1.2s ease;
 }
 
-/* 档位 2（64–128）：紫 / 品红 / 天蓝 */
+/* 档位 2（64–128）：琥珀 / 橙 / 靛 */
 [data-tier="2"] {
-  --aurora-1: #9b5cff;
-  --aurora-2: #ff4fd8;
-  --aurora-3: #3dbbff;
+  --aurora-1: #ffcc3a;
+  --aurora-2: #ff9b2f;
+  --aurora-3: #5b4cff;
 }
 
-/* 档位 3（256–512）：玫红 / 珊瑚 / 紫 */
+/* 档位 3（256–512）：珊瑚 / 玫红 / 紫 */
 [data-tier="3"] {
-  --aurora-1: #ff4f8b;
-  --aurora-2: #ff6a5d;
-  --aurora-3: #9b5cff;
+  --aurora-1: #e2482a;
+  --aurora-2: #d92659;
+  --aurora-3: #8b5cff;
 }
 
-/* 档位 4（1024）：橙 / 琥珀 / 玫红 */
+/* 档位 4（1024）：紫焰 / 玫红 / 靛 */
 [data-tier="4"] {
-  --aurora-1: #ff8a2b;
-  --aurora-2: #ffb020;
-  --aurora-3: #ff4f8b;
+  --aurora-1: #a434e6;
+  --aurora-2: #d92659;
+  --aurora-3: #5b4cff;
 }
 
-/* 档位 5（≥ 2048）：金 / 橙 / 品红 */
+/* 档位 5（≥ 2048）：金 / 橙 / 紫 */
 [data-tier="5"] {
-  --aurora-1: #ffd83d;
-  --aurora-2: #ff8a2b;
-  --aurora-3: #ff4fd8;
+  --aurora-1: #ffd54a;
+  --aurora-2: #ff9b2f;
+  --aurora-3: #a434e6;
 }
 
 /* ---------- 页面：锁定为一屏，禁止滚动 / 回弹 / 缩放 ---------- */
@@ -582,8 +588,9 @@ button {
 }
 
 .game-container {
-  /* 不支持容器查询单位时的兜底尺寸 */
-  --board: min(calc(100vw - 32px), calc(100vh - 330px), 448px);
+  /* 可用边长；不支持容器查询单位时用视口估算兜底 */
+  --board-raw: min(calc(100vw - 32px), calc(100vh - 330px), 448px);
+  --board: var(--board-raw);
   --gap: calc(var(--board) * .03);
   --cell: calc((var(--board) - var(--gap) * 5) / 4);
   --radius: calc(var(--cell) * .17);
@@ -594,13 +601,15 @@ button {
   width: var(--board);
   height: var(--board);
   padding: var(--gap);
-  border-radius: calc(var(--radius) + var(--gap) * .6);
+  /* 与格子圆角同心 */
+  border-radius: calc(var(--radius) + var(--gap));
+  /* 方块光晕 / 合并光环裁在棋盘内，外框的边由 ::after 压住 */
+  overflow: hidden;
   cursor: default;
   touch-action: none;
 
-  background: var(--board-bg);
+  background: linear-gradient(180deg, rgba(30, 21, 72, .94), rgba(20, 13, 54, .94));
   box-shadow:
-    inset 0 0 0 1px var(--panel-edge),
     0 0 0 1px rgba(139, 92, 255, .2),
     0 0 48px var(--edge-glow),
     0 24px 60px rgba(0, 0, 0, .45);
@@ -609,8 +618,31 @@ button {
 
 @supports (width: 1cqmin) {
   .game-container {
-    --board: min(100cqw, 100cqh);
+    --board-raw: min(100cqw, 100cqh);
   }
+}
+
+/* 间距和格子取整到整像素，再反推棋盘边长：方块边缘与数字不发虚，间距均匀 */
+@supports (width: round(1px, 1px)) {
+  .game-container {
+    --gap: round(var(--board-raw) * .03, 1px);
+    --cell: round(down, (var(--board-raw) - var(--gap) * 5) / 4, 1px);
+    --board: calc(var(--cell) * 4 + var(--gap) * 5);
+  }
+}
+
+/* 玻璃外框：顶部高光 + 1px 描边 + 内侧暗边，盖在方块之上（选中标记和弹层之下） */
+.game-container::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .18),
+    inset 0 0 0 1px rgba(255, 255, 255, .1),
+    inset 0 0 calc(var(--gap) * .9) calc(var(--gap) * .1) rgba(10, 5, 32, .45);
 }
 
 /* 连击时棋盘边缘发出对应颜色的光 */
@@ -645,10 +677,13 @@ button {
   gap: var(--gap);
 }
 
+/* 空格：凹槽，顶部内阴影 + 底边一道反光 */
 .grid-cell {
   border-radius: var(--radius);
-  background: rgba(255, 255, 255, .06);
-  box-shadow: inset 0 2px 8px rgba(0, 0, 0, .35);
+  background: rgba(8, 4, 28, .55);
+  box-shadow:
+    inset 0 2px 6px rgba(0, 0, 0, .45),
+    inset 0 -1px 0 rgba(255, 255, 255, .06);
   transition: box-shadow 200ms ease;
 }
 
@@ -659,12 +694,15 @@ button {
   z-index: 2;
 }
 
-/* ---------- 方块 ---------- */
+/* ---------- 方块：霓虹宝石玻璃 ---------- */
 
 .tile {
-  --t: #4fe3b8;
-  --fg: #fff;
-  --glow: rgba(0, 0, 0, 0);
+  --t: #4d6a8c;                    /* 主色 */
+  --fg: #fff;                      /* 数字颜色 */
+  --fg-shadow: rgba(0, 0, 0, .22); /* 数字的刻字阴影 */
+  --glow: rgba(0, 0, 0, 0);        /* 外发光 */
+  --edge: rgba(0, 0, 0, .25);      /* 底部厚度边 */
+  --loop: none;                    /* 高阶方块的常驻动画，和进出场动画叠加 */
 
   position: absolute;
   top: 0;
@@ -674,7 +712,21 @@ button {
   transition: transform var(--slide) cubic-bezier(.25, .8, .35, 1.06);
 }
 
+/* 厚度边取同色深一档 */
+@supports (color: color-mix(in oklab, red, blue)) {
+  .tile {
+    --edge: color-mix(in oklab, var(--t), black 32%);
+  }
+}
+
 .tile-inner {
+  /* 玻璃边、顶部亮线、底部厚度、落地阴影（呼吸动画复用） */
+  --tile-face:
+    inset 0 0 0 1px rgba(255, 255, 255, .22),
+    inset 0 1px 0 rgba(255, 255, 255, .5),
+    inset 0 calc(var(--cell) * -.06) 0 var(--edge),
+    0 calc(var(--cell) * .04) calc(var(--cell) * .08) rgba(0, 0, 0, .35);
+
   position: relative;
   box-sizing: border-box;
   width: 100%;
@@ -690,13 +742,14 @@ button {
   line-height: 1;
   font-variant-numeric: tabular-nums;
   letter-spacing: -.02em;
+  text-shadow: 0 1px 0 var(--fg-shadow);
 
   background-color: var(--t);
-  background-image: linear-gradient(155deg, rgba(255, 255, 255, .3), rgba(255, 255, 255, 0) 55%);
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, .18),
-    inset 0 calc(var(--cell) * -.05) 0 rgba(0, 0, 0, .18),
-    0 0 calc(var(--cell) * .32) var(--glow);
+  background-image:
+    radial-gradient(120% 70% at 30% 0%, rgba(255, 255, 255, .38), rgba(255, 255, 255, 0) 60%),
+    linear-gradient(180deg, rgba(255, 255, 255, .12), rgba(255, 255, 255, 0) 60%);
+  box-shadow: var(--tile-face), 0 0 calc(var(--cell) * .3) var(--glow);
+  animation: var(--loop);
 }
 
 /* 按位数缩小字号，6~7 位数也放得下 */
@@ -706,53 +759,139 @@ button {
 .tile-len-6 .tile-inner { font-size: calc(var(--cell) * .205); }
 .tile-len-7 .tile-inner { font-size: calc(var(--cell) * .175); }
 
-/* 色带绕色环一圈：薄荷 → 天蓝 → 靛蓝 → 紫 → 品紫 → 品红 → 玫红 → 珊瑚 → 橙 → 琥珀 → 金。
-   数值越大发光越强；背景极光跟着最大方块走同一条色带 */
-.tile-2    { --t: #4fe3b8; --fg: #063a2c; }
-.tile-4    { --t: #5ab8ff; --fg: #072a4f; }
-.tile-8    { --t: #5b6cff; --glow: rgba(91, 108, 255, .3); }
-.tile-16   { --t: #8b5cff; --glow: rgba(139, 92, 255, .35); }
-.tile-32   { --t: #c04dff; --glow: rgba(192, 77, 255, .4); }
-.tile-64   { --t: #ff4fd8; --glow: rgba(255, 79, 216, .45); }
-.tile-128  { --t: #ff4f8b; --glow: rgba(255, 79, 139, .5); }
-.tile-256  { --t: #ff5d5d; --glow: rgba(255, 93, 93, .55); }
-.tile-512  { --t: #ff8a2b; --glow: rgba(255, 138, 43, .6); }
-.tile-1024 { --t: #ffb020; --fg: #3a2200; --glow: rgba(255, 176, 32, .7); }
-.tile-2048 { --t: #ffd83d; --fg: #3a2200; --glow: rgba(255, 216, 61, .85); }
+/* 由冷到热升温：小数值冷暗、安静；数值越大越饱和、越亮、发光越强。
+   背景极光跟着最大方块走同一条色带 */
+.tile-2    { --t: #4d6a8c; --fg: #eef4ff; }
+.tile-4    { --t: #357a9e; }
+.tile-8    { --t: #1aa9b0; --fg: #032a2d; --fg-shadow: rgba(255, 255, 255, .3); --glow: rgba(26, 169, 176, .22); }
+.tile-16   { --t: #27c487; --fg: #03301d; --fg-shadow: rgba(255, 255, 255, .3); --glow: rgba(39, 196, 135, .25); }
+.tile-32   { --t: #97d63c; --fg: #253400; --fg-shadow: rgba(255, 255, 255, .3); --glow: rgba(151, 214, 60, .28); }
+.tile-64   { --t: #ffcc3a; --fg: #3d2a00; --fg-shadow: rgba(255, 255, 255, .35); --glow: rgba(255, 204, 58, .38); }
+.tile-128  { --t: #ff9b2f; --fg: #3a1a00; --fg-shadow: rgba(255, 255, 255, .3); --glow: rgba(255, 155, 47, .45); }
+.tile-256  { --t: #e2482a; --glow: rgba(226, 72, 42, .55); }
+.tile-512  { --t: #d92659; --glow: rgba(217, 38, 89, .6); }
+.tile-1024 { --t: #a434e6; --glow: rgba(164, 52, 230, .7); --loop: spin 3s linear infinite; }
+.tile-2048 { --t: #ffd54a; --fg: #4a2c00; --fg-shadow: rgba(255, 255, 255, .4); --glow: rgba(255, 213, 74, .85);
+             --loop: glow-breathe 1.8s ease-in-out infinite; }
 
-.tile-128 .tile-inner, .tile-256 .tile-inner, .tile-512 .tile-inner {
-  text-shadow: 0 0 calc(var(--cell) * .12) rgba(255, 255, 255, .55);
-}
-
-.tile-2048 .tile-inner {
-  animation: glow-breathe 1.8s ease-in-out infinite;
-}
-
-/* 超过 2048：流动的霓虹彩虹 */
+/* 超过 2048：黑曜石底 + 金字 + 旋转彩虹描边 */
 .tile-super {
-  --fg: #fff;
+  --t: #1b1238;
+  --fg: #ffd54a;
+  --fg-shadow: rgba(0, 0, 0, .5);
   --glow: rgba(255, 79, 216, .7);
+  --loop: spin 3s linear infinite;
+}
+
+/* 1024 火焰描边 / 超大方块彩虹描边：圆锥渐变画在边框里，--spin 让它转起来
+   （不支持 @property 的浏览器显示静止的渐变边） */
+.tile-1024 .tile-inner, .tile-super .tile-inner {
+  border: calc(var(--cell) * .035) solid transparent;
+  background:
+    radial-gradient(120% 70% at 30% 0%, rgba(255, 255, 255, .38), rgba(255, 255, 255, 0) 60%) padding-box,
+    linear-gradient(180deg, rgba(255, 255, 255, .12), rgba(255, 255, 255, 0) 60%) padding-box,
+    linear-gradient(var(--t), var(--t)) padding-box,
+    conic-gradient(from var(--spin), #ff6a3d, #ffd54a, #ff3d9a, #a434e6, #ff6a3d) border-box;
 }
 
 .tile-super .tile-inner {
-  background-image: linear-gradient(135deg, var(--cyan), var(--violet), var(--pink), var(--gold), var(--cyan));
-  background-size: 300% 300%;
-  text-shadow: 0 0 calc(var(--cell) * .1) rgba(0, 0, 0, .45);
-  animation: hue-flow 4s linear infinite;
+  background:
+    radial-gradient(120% 70% at 30% 0%, rgba(255, 255, 255, .2), rgba(255, 255, 255, 0) 60%) padding-box,
+    linear-gradient(var(--t), var(--t)) padding-box,
+    conic-gradient(from var(--spin), #3de8ff, #8b5cff, #ff4fd8, #ffd54a, #3de8ff) border-box;
+}
+
+@keyframes spin {
+  100% { --spin: 360deg; }
 }
 
 @keyframes glow-breathe {
-  50% {
-    box-shadow:
-      inset 0 0 0 1px rgba(255, 255, 255, .3),
-      inset 0 calc(var(--cell) * -.05) 0 rgba(0, 0, 0, .18),
-      0 0 calc(var(--cell) * .55) var(--glow);
-  }
+  50% { box-shadow: var(--tile-face), 0 0 calc(var(--cell) * .55) var(--glow); }
 }
 
-@keyframes hue-flow {
-  0%   { background-position: 0% 50%; }
-  100% { background-position: 300% 50%; }
+/* ---------- 高阶方块装饰 ---------- */
+
+/* 512 起：右上、左下两颗四角星交替闪烁（星形用 mask 画，颜色取白） */
+.tile-512 .tile-value::after,
+.tile-1024 .tile-value::after,
+.tile-2048 .tile-value::after,
+.tile-super .tile-value::after,
+.tile-512 .tile-value::before,
+.tile-1024 .tile-value::before {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  background: #fff;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 0C13 9 15 11 24 12C15 13 13 15 12 24C11 15 9 13 0 12C9 11 11 9 12 0Z'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 0C13 9 15 11 24 12C15 13 13 15 12 24C11 15 9 13 0 12C9 11 11 9 12 0Z'/%3E%3C/svg%3E") center / contain no-repeat;
+  animation: twinkle 2.4s ease-in-out infinite;
+}
+
+/* 大星：右上角 */
+.tile-512 .tile-value::after,
+.tile-1024 .tile-value::after,
+.tile-2048 .tile-value::after,
+.tile-super .tile-value::after {
+  top: 9%;
+  right: 9%;
+  width: calc(var(--cell) * .17);
+  height: calc(var(--cell) * .17);
+}
+
+/* 小星：左下角，和大星错开半个周期 */
+.tile-512 .tile-value::before,
+.tile-1024 .tile-value::before {
+  bottom: 13%;
+  left: 11%;
+  width: calc(var(--cell) * .1);
+  height: calc(var(--cell) * .1);
+  animation-delay: -1.2s;
+}
+
+@keyframes twinkle {
+  0%, 100% { opacity: .95; transform: scale(1) rotate(0deg); }
+  50%      { opacity: .2;  transform: scale(.45) rotate(45deg); }
+}
+
+/* 2048 及以上：数字下移，上方一顶皇冠 */
+.tile-2048 .tile-value, .tile-super .tile-value {
+  margin-top: calc(var(--cell) * .14);
+}
+
+.tile-2048 .tile-value::before, .tile-super .tile-value::before {
+  content: "";
+  position: absolute;
+  top: calc(var(--cell) * .11);
+  left: 50%;
+  width: calc(var(--cell) * .28);
+  height: calc(var(--cell) * .2);
+  margin-left: calc(var(--cell) * -.14);
+  pointer-events: none;
+  background: linear-gradient(180deg, #b87000, #5a3500);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 20'%3E%3Cpath d='M1 5l6 5 6-9 6 9 6-5-2.5 11h-19z'/%3E%3Crect x='3.5' y='17' width='19' height='3' rx='1'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 20'%3E%3Cpath d='M1 5l6 5 6-9 6 9 6-5-2.5 11h-19z'/%3E%3Crect x='3.5' y='17' width='19' height='3' rx='1'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+.tile-super .tile-value::before {
+  background: linear-gradient(180deg, #fff6c8, #ffb020);
+}
+
+/* 2048 及以上：每隔几秒扫过一道斜光（只在方块内） */
+.tile-2048 .tile-inner::before, .tile-super .tile-inner::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(100deg, rgba(255, 255, 255, 0) 35%, rgba(255, 255, 255, .55) 50%, rgba(255, 255, 255, 0) 65%) no-repeat;
+  background-size: 250% 100%;
+  background-position: 150% 0;
+  animation: sheen 3.2s ease-in-out infinite;
+}
+
+@keyframes sheen {
+  0%, 55% { background-position: 150% 0; }
+  100%    { background-position: -50% 0; }
 }
 
 /* ---------- 方块动效 ---------- */
@@ -770,11 +909,12 @@ button {
 
 @keyframes ring {
   0%   { opacity: .9; transform: scale(.9); }
-  100% { opacity: 0;  transform: scale(1.45); }
+  100% { opacity: 0;  transform: scale(1.25); }
 }
 
+/* 进场动画后面接上 --loop，高阶方块的常驻动画不会被覆盖 */
 .tile-new .tile-inner {
-  animation: appear 220ms var(--ease-back) var(--slide) backwards;
+  animation: appear 220ms var(--ease-back) var(--slide) backwards, var(--loop);
 }
 
 .tile-merged {
@@ -782,7 +922,7 @@ button {
 }
 
 .tile-merged .tile-inner {
-  animation: pop 240ms var(--ease-back) var(--slide) backwards;
+  animation: pop 240ms var(--ease-back) var(--slide) backwards, var(--loop);
 }
 
 /* 合并时外扩的光环 */
@@ -797,19 +937,9 @@ button {
   animation: ring 420ms ease-out var(--slide) both;
 }
 
-.tile-2048.tile-merged .tile-inner {
-  animation: pop 240ms var(--ease-back) var(--slide) backwards,
-             glow-breathe 1.8s ease-in-out infinite;
-}
-
-.tile-super.tile-merged .tile-inner {
-  animation: pop 240ms var(--ease-back) var(--slide) backwards,
-             hue-flow 4s linear infinite;
-}
-
 /* 撤销：恢复的方块淡入 */
 .tile-rewind .tile-inner {
-  animation: rewind 260ms ease-out backwards;
+  animation: rewind 260ms ease-out backwards, var(--loop);
 }
 
 @keyframes rewind {
@@ -871,13 +1001,16 @@ button {
 }
 
 .is-targeting .grid-cell {
-  box-shadow: inset 0 2px 8px rgba(0, 0, 0, .35), inset 0 0 0 1px rgba(255, 255, 255, .18);
+  box-shadow:
+    inset 0 2px 6px rgba(0, 0, 0, .45),
+    inset 0 -1px 0 rgba(255, 255, 255, .06),
+    inset 0 0 0 1px rgba(255, 255, 255, .18);
 }
 
 /* 可点选的方块：虚线描边 */
 .is-targeting .tile-inner {
   outline: 2px dashed rgba(255, 255, 255, .7);
-  outline-offset: calc(var(--cell) * -.07);
+  outline-offset: calc(var(--cell) * -.08);
 }
 
 /* 锤子：方块微微颤动，暗示可以敲碎 */
@@ -891,7 +1024,7 @@ button {
   75%      { rotate: 2deg; }
 }
 
-/* 交换选中的第一块：发光边框 */
+/* 交换选中的第一块：发光边框（光晕收小，避免被棋盘边缘生硬裁掉） */
 .cell-marker {
   position: absolute;
   top: var(--gap);
@@ -908,12 +1041,12 @@ button {
 .cell-marker.is-shown {
   opacity: 1;
   border: 3px solid #fff;
-  box-shadow: 0 0 0 3px var(--cyan), 0 0 22px var(--cyan);
+  box-shadow: 0 0 0 3px var(--cyan), 0 0 12px var(--cyan);
   animation: marker-pulse 900ms ease-in-out infinite;
 }
 
 @keyframes marker-pulse {
-  50% { box-shadow: 0 0 0 5px var(--cyan), 0 0 32px var(--cyan); }
+  50% { box-shadow: 0 0 0 5px var(--cyan), 0 0 16px var(--cyan); }
 }
 
 /* ---------- 按钮 ---------- */
@@ -1412,8 +1545,10 @@ button {
   .tile-merged .tile-inner,
   .tile-merged .tile-inner::after,
   .tile-rewind .tile-inner,
-  .tile-2048 .tile-inner,
-  .tile-super .tile-inner,
+  .tile .tile-inner,
+  .tile .tile-inner::before,
+  .tile .tile-value::before,
+  .tile .tile-value::after,
   .is-targeting[data-item="hammer"] .tile,
   .cell-marker.is-shown,
   .best-container.is-record,
